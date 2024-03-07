@@ -1,9 +1,10 @@
 import {useEffect, useState} from 'react'
 import './App.css'
 import {Auth} from "./components/Auth.jsx";
-import {auth, googleProvider, db} from "./config/firebase.js";
+import {auth, db, storage} from "./config/firebase.js";
 import {signOut} from 'firebase/auth';
-import {collection, getDocs, addDoc} from 'firebase/firestore'
+import {ref, uploadBytes} from 'firebase/storage';
+import {collection, getDocs, addDoc, deleteDoc, doc, updateDoc} from 'firebase/firestore'
 
 function App() {
 
@@ -11,8 +12,34 @@ function App() {
     const [title, setTitle] = useState(null);
     const [description, setDescription] = useState(null);
     const [releaseDate, setReleaseDate] = useState(null);
+    const [newTitle, setNewTitle] = useState(null);
+
+    const [fileUpload, setFileUpload] = useState(null);
 
     const movieCollectionRef = collection(db, "movies");
+
+    const changeMovieTitle = async (id) => {
+        const movieDoc = doc(db, 'movies', id);
+        try {
+            await updateDoc(movieDoc, {
+                title: newTitle,
+            })
+        }  catch (error) {
+            console.error(error);
+        }
+    }
+
+    const uploadFile = async () => {
+        // this means do nothing if there is no file.
+        if (!fileUpload) return ;
+
+        const fileFolderRef = ref(storage, `projectFiles/${fileUpload.name}`);
+        try {
+            await uploadBytes(fileFolderRef, fileUpload);
+        } catch (error) {
+            console.error(error);
+        }
+    }
 
     const getMoviesList = async () => {
         try {
@@ -24,6 +51,17 @@ function App() {
             setMovieList(filteredData);
         } catch(error) {
             console.error("the error ", error, " occured when fetching the docs");
+        }
+    }
+
+    const deleteMovie = async (movieId) => {
+        const movieRef = doc(db, "movies", movieId);
+        try {
+            await deleteDoc(movieRef);
+            console.log("The movie has been deleted");
+            getMoviesList();
+        } catch(error) {
+            console.error(error);
         }
     }
 
@@ -41,7 +79,8 @@ function App() {
             await addDoc(movieCollectionRef, {
                 title,
                 description,
-                releaseDate
+                releaseDate,
+                userId: auth?.currentUser?.uid,
             })
             getMoviesList();
             console.log("the movie has been added");
@@ -62,7 +101,7 @@ function App() {
     return (
           <div>
               {
-                  auth.currentUser &&
+                  !auth?.currentUser &&
                   <Auth />
               }
 
@@ -78,6 +117,14 @@ function App() {
                   movieList.map((movie, index) => (
                       <div key={index} className={"text-[blue]"}>
                           {movie.title}
+                          
+                          <input onChange={(ev) => setNewTitle(ev.target.value)} placeholder={"enter the new title"} />
+
+                          <button  onClick={() => changeMovieTitle(movie.id)}>change the title</button>
+
+                          <button onClick={() => deleteMovie(movie.id)}>
+                                Delete Movie
+                          </button>
                       </div>
                   ))
               }
@@ -95,6 +142,17 @@ function App() {
 
                   <button onClick={() => submitMovie() } className={"block bg-blue-500 py-3 px-5 mt-5 text-white font-bold mx-auto"}>
                         Submit the movie
+                  </button>
+              </div>
+              
+              
+              <div>
+                  <h1 className={"text-4xl"}>Stuff related sending images </h1>
+
+                  <input type={"file"} onChange={(ev) => setFileUpload(ev.target.files[0])}  placeholder={"Upload the file"} />
+
+                  <button className={"font-bold my-5 bg-blue-500 block mx-auto py-3 px-2 text-white"} onClick={() => uploadFile()}>
+                        Upload the file to firebase
                   </button>
               </div>
           </div>
